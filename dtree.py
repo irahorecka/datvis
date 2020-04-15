@@ -59,25 +59,30 @@ def iter_fields(node):
 # ~~~~~~~~~~~~~~~~~~~~~~~~ DRAWING STD DATATYPES ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def parse_PyType(ast_node):
-    if not ast_node.get('_PyType'):
-        return
-    if ast_node.get('_PyType') not in ('Tuple', 'Dict', 'List', 'Set', 'Num', 'Str'):
-        return
-    if ast_node.get('_PyType') == 'Dict':
-        keys = ast_node.get('keys')
-        values = ast_node.get('values')
-        del ast_node['keys']
-        del ast_node['values']
+def parse_PyType(node):
+    if not isinstance(node, dict):
+        return node
+    if not node.get('_PyType'):
+        return node
+    if node.get('_PyType') not in ('Tuple', 'Dict', 'List', 'Set',
+                                   'Expr', 'Num', 'Str', 'Name'):
+        return node
+    if node.get('_PyType') == 'Dict':
+        keys = node.get('keys')
+        values = node.get('values')
+        del node['keys']
+        del node['values']
         zip_kv = zip(keys, values)
+
         dict_kv = collections.defaultdict(dict)
         for index, i in enumerate(zip_kv):
             dict_kv[f'{index}_key'] = i[0]
             dict_kv[f'{index}_key']['value'] = i[1]
-        ast_node = {**ast_node, **dict_kv}
-        return ast_node
+        node = {**node, **dict_kv}
+        print(node)
+        return node
 
-    return ast_node
+    return node
 
 def screen_PyType(key, node):
     if key != '_PyType':
@@ -89,26 +94,47 @@ def screen_PyType(key, node):
     return node
 
 
-def grapher(graph, ast_nodes, parent_node='', node_hash='__init__'):
+# def grapher(graph, ast_nodes, parent_node='', node_hash='__init__'):
+#     """Recursively parse JSON-AST object into a tree."""
+#     # ast_nodes = parse_PyType(ast_nodes)
+#     if isinstance(ast_nodes, dict):
+#         for key, node in ast_nodes.items():
+#             # TODO: make conditional below into a func.
+#             screen_node = parse_PyType(node)
+#             if screen_node:
+#                 if not parent_node:
+#                     parent_node = node
+#                     continue
+#                 node = graph_detail(node, ast_nodes)  # get node detail for graph
+#                 node_hash = draw(parent_node, node, graph=graph, parent_hash=node_hash)
+#                 parent_node = node  # once a child now parent
+#                 continue
+#             # parse recursively
+#             if isinstance(node, dict):
+#                 grapher(graph, node, parent_node=parent_node, node_hash=node_hash)
+#             if isinstance(node, list):
+#                 [grapher(graph, item, parent_node=parent_node, node_hash=node_hash) for item in node]
+
+def _grapher(graph, ast_nodes, parent_node='', node_hash='__init__'):
     """Recursively parse JSON-AST object into a tree."""
-    # ast_nodes = parse_PyType(ast_nodes)
     if isinstance(ast_nodes, dict):
         for key, node in ast_nodes.items():
             # TODO: make conditional below into a func.
-            screen_node = screen_PyType(key, node)
-            if screen_node:
-                if not parent_node:
-                    parent_node = node
-                    continue
-                node = graph_detail(node, ast_nodes)  # get node detail for graph
-                node_hash = draw(parent_node, node, graph=graph, parent_hash=node_hash)
-                parent_node = node  # once a child now parent
+            if not parent_node:
+                parent_node = node
                 continue
-            # parse recursively
-            if isinstance(node, dict):
-                grapher(graph, node, parent_node=parent_node, node_hash=node_hash)
-            if isinstance(node, list):
-                [grapher(graph, item, parent_node=parent_node, node_hash=node_hash) for item in node]
+            node = parse_PyType(node)
+            if node:
+                # parse recursively
+                if isinstance(node, dict):
+                    _grapher(graph, node, parent_node=parent_node, node_hash=node_hash)
+                if isinstance(node, list):
+                    [_grapher(graph, item, parent_node=parent_node, node_hash=node_hash) for item in node]
+                if isinstance(node, str):
+                    node = graph_detail(node, ast_nodes)  # get node detail for graph
+                    node_hash = draw(parent_node, node, graph=graph, parent_hash=node_hash)
+                    parent_node = node  # once a child now parent
+
 
 
 def graph_detail(value, ast_scope):
@@ -127,6 +153,7 @@ def clean_node(method):
     def wrapper(*args, **kwargs):
         parent_name, child_name = tuple('_node' if node == 'node' else node for node in args)
         illegal_char = re.compile(r'[,\\/]$')
+        print(child_name)
         illegal_char.sub('*', child_name)
         if not child_name:
             return
@@ -160,13 +187,13 @@ if __name__ == '__main__':
     from pprint import pprint
     graph = pydot.Dot(graph_type='digraph', strict=True, constraint=True,
                       concentrate=True, splines='polyline')    # from pprint import pprint
-    dtest = "{'b': 3, 'a': [1, 2, 3], 'c': [10]}"
-    ltest = '[1, 2, 3, ["a", "b", "c"], (graph, 2, 3)]'
-    stest = '{1, 2, 3}'
-    ttest = '(1, 2, 3)'
-    user_input = dtest
+    dtest = {'b': 3, 'a': [1, 2, 3], 'c': [10], 5: {'z': 1, 'xz': 2}}
+    ltest = [1, 2, 3, ["a", "b", "c"], (graph, 2, 3)]
+    stest = {1, 2, 3}
+    ttest = (1, 2, 3)
+    user_input = str(dtest)
     pprint(json_ast(user_input))
-    grapher(graph, json_ast(user_input))
+    _grapher(graph, json_ast(user_input))
     if graph.write_png('dtree.png'):
         print("Graph made successfully.")
 
