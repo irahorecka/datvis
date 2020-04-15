@@ -79,7 +79,7 @@ def parse_PyType(node):
             dict_kv[f'{index}_key'] = i[0]
             dict_kv[f'{index}_key']['value'] = i[1]
         node = {**node, **dict_kv}
-        # print(node)
+        print(node)
         return node
 
     return node
@@ -99,6 +99,8 @@ def _grapher(graph, ast_nodes, parent_node='', node_hash='__init__'):
     if isinstance(ast_nodes, dict):
         for key, node in ast_nodes.items():
             # TODO: make conditional below into a func.
+            if isinstance(node, list):
+                [_grapher(graph, item, parent_node=parent_node, node_hash=node_hash) for item in node]
             node = parse_PyType(node)
             if node:
                 if not parent_node and isinstance(node, str):
@@ -107,8 +109,6 @@ def _grapher(graph, ast_nodes, parent_node='', node_hash='__init__'):
                 # parse recursively
                 if isinstance(node, dict):
                     _grapher(graph, node, parent_node=parent_node, node_hash=node_hash)
-                if isinstance(node, list):
-                    [_grapher(graph, item, parent_node=parent_node, node_hash=node_hash) for item in node]
                 if isinstance(node, str):
                     if node.islower():  # hacky way to check for filler nodes (i.e. 's', 'n', etc from dict parse)
                         continue
@@ -123,7 +123,7 @@ def graph_detail(value, ast_scope):
     detail_keys = ('module', 'n', 's', 'id', 'name', 'attr', 'arg')
     for key in detail_keys:
         if not isinstance(dict.get(ast_scope, key), type(None)):
-            value = f"{value}\n{key}: {ast_scope[key]}"
+            value = f"{key}: {ast_scope[key]}"
 
     return value
 
@@ -169,7 +169,7 @@ def set_default(obj):
 # current return of ast_json works.
 if __name__ == '__main__':
     from pprint import pprint
-    graph = pydot.Dot(graph_type='digraph', strict=True, constraint=True,
+    graph = pydot.Dot(graph_type='graph', strict=True, constraint=True,
                       concentrate=True, splines='polyline')
     gen = (i for i in range(10))
     dtest = {'b': 3, 'a': [1, 2, 3], 'c': [10], 5: {'z': 1, 'xz': 2}, 6: {'a'}, 7: gen}
@@ -177,24 +177,35 @@ if __name__ == '__main__':
     stest = {1, 2, 3, _grapher}
     ttest = (1, 2, 3)
     l2test = """[1, 2, 3, ["a!", "b", "c"], (_grapher, 2, 3)]"""
-    x = {'value': {'_PyType': 'Dict',
-                   'keys': [{'_PyType': 'Str', 's': 'b'},
-                            {'_PyType': 'Str', 's': 'a'},
-                            {'_PyType': 'Str', 's': 'c'}],
-                   'values': [{'_PyType': 'Num', 'n': 3},
-                              {'_PyType': 'List',
-                               'ctx': {'_PyType': 'Load'},
-                               'elts': [{'_PyType': 'Num', 'n': 1},
-                                        {'_PyType': 'Num', 'n': 2},
-                                        {'_PyType': 'Num', 'n': 3}]},
-                              {'_PyType': 'List',
-                               'ctx': {'_PyType': 'Load'},
-                               'elts': [{'_PyType': 'Num', 'n': 10}]}]}
-         }
-    user_input = str(x)
-    print(user_input, l2test)
-    print(gen.__name__)
-    # pprint(json_ast(user_input))
+    x = {
+      "message":{'a'},
+      "data":[{
+        "desc":"Inspect For Fluid Leaks",
+        "due_mileage":52500,
+        "is_oem":True,
+        "repair":{
+          "repair_difficulty":2,
+          "repair_hours":0.0,
+          "labor_rate_per_hour":106.38,
+          "part_cost":6.15,
+          "labor_cost":0.0,
+          "misc_cost":0.0,
+          "total_cost":6.15
+        },
+        "parts":[{
+          "desc":"Engine Oil",
+          "manufacturer":"",
+          "price":"6.15",
+          "qty":"1"
+        }]
+      },
+      {'a'}]
+    }
+    test_list = ['ira', 'nanna', 'ghost', [1, 2, 3], {'a', 'b', 'c'}, ('do', 're', 'mi')]
+    user_input = str(test_list)
+    # print(user_input, l2test)
+    # print(gen.__name__)
+    pprint(json_ast(user_input))
     _grapher(graph, json_ast(user_input))
     if graph.write_png('dtree.png'):
         print("Graph made successfully.")
